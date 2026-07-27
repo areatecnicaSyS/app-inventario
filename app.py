@@ -191,7 +191,7 @@ else:
       with col2:
         cantidad = st.number_input("Cantidad Inicial", min_value=0, step=1)
         precio = st.number_input(
-            "Precio Unitario ($)", min_value=0, format="%.2f"
+            "Precio Unitario ($)", min_value=0.0, format="%.2f"
         )
         ubicacion = st.text_input("Ubicación en Almacén")
 
