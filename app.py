@@ -25,11 +25,11 @@ passwords = [
 def verificar_credenciales(usuario, contraseña):
   # Base de datos simulada de usuarios y roles
   usuarios_db = {
-      "admin": {"password": "12345", "rol": "Administrador", "nombre": "Carlos"},
+      "admin": {"password": "12345", "rol": "Administrador", "nombre": "Alejandro Muñoz"},
       "empleado": {
           "password": "abcde",
           "rol": "Empleado",
-          "nombre": "Ana Pérez",
+          "nombre": "Técnico",
       },
   }
   if usuario in usuarios_db and usuarios_db[usuario]["password"] == contraseña:
@@ -191,7 +191,7 @@ else:
       with col2:
         cantidad = st.number_input("Cantidad Inicial", min_value=0, step=1)
         precio = st.number_input(
-            "Precio Unitario ($)", min_value=0.0, format="%.2f"
+            "Precio Unitario ($)", min_value=0, format="%.2f"
         )
         ubicacion = st.text_input("Ubicación en Almacén")
 
