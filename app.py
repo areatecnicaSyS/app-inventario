@@ -5,7 +5,7 @@ import streamlit_authenticator as stauth
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Gestión de Inventarios con Login", page_icon="📦", layout="wide"
+    page_title="Gestión de Inventarios Terra Pietra sas con Login", page_icon="📦", layout="wide"
 )
 
 # Definición de usuarios y contraseñas (Las contraseñas ya vienen hasheadas por seguridad)
@@ -25,11 +25,11 @@ passwords = [
 def verificar_credenciales(usuario, contraseña):
   # Base de datos simulada de usuarios y roles
   usuarios_db = {
-      "admin": {"password": "12345", "rol": "Administrador", "nombre": "Alejandro Muñoz"},
+      "admin": {"password": "12345", "rol": "Administrador", "nombre": "Alexander"},
       "empleado": {
           "password": "abcde",
           "rol": "Empleado",
-          "nombre": "Técnico",
+          "nombre": "Vendedor",
       },
   }
   if usuario in usuarios_db and usuarios_db[usuario]["password"] == contraseña:
