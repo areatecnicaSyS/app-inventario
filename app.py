@@ -1,7 +1,7 @@
-import pandas as pd
-import streamlit as st
 import gspread
+import pandas as pd
 from oauth2client.service_account import ServiceAccountCredentials
+import streamlit as st
 
 # Configuración de la página
 st.set_page_config(
@@ -13,9 +13,6 @@ st.set_page_config(
 
 # Conexión a Google Sheets usando los secretos de Streamlit
 @st.cache_resource
-py = None
-
-
 def conectar_google_sheets():
   scope = [
       "https://spreadsheets.google.com/feeds",
