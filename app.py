@@ -1,35 +1,84 @@
-import os
 import pandas as pd
 import streamlit as st
-import streamlit_authenticator as stauth
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Gestión de Inventarios con Login", page_icon="📦", layout="wide"
+    page_title="Gestión de Inventarios con Google Sheets",
+    page_icon="📦",
+    layout="wide",
 )
 
-# Definición de usuarios y contraseñas (Las contraseñas ya vienen hasheadas por seguridad)
-# Credenciales por defecto:
-# - Admin: usuario 'admin', contraseña '12345'
-# - Empleado: usuario 'empleado', contraseña 'abcde'
-names = ["Administrador", "Empleado Almacén"]
-usernames = ["admin", "empleado"]
-passwords = [
-    "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW",  # hash de '12345'
-    "$2b$12$W979Cj1wL... (ejemplo de hash o contraseña)",
-]  # Nota: para simplificar pruebas, abajo manejamos un login simple y seguro por diccionario si prefieres, o el authenticator oficial.
 
-# Para evitar problemas con hashes complejos en pruebas rápidas, usaremos un formulario de login seguro integrado:
+# Conexión a Google Sheets usando los secretos de Streamlit
+@st.cache_resource
+py = None
 
 
+def conectar_google_sheets():
+  scope = [
+      "https://spreadsheets.google.com/feeds",
+      "https://www.googleapis.com/auth/drive",
+  ]
+  # Cargamos credenciales desde los secretos de Streamlit Cloud
+  credentials_dict = dict(st.secrets["gcp_service_account"])
+  creds = ServiceAccountCredentials.from_json_keyfile_dict(
+      credentials_dict, scope
+  )
+  client = gspread.authorize(creds)
+  # Abre la hoja de cálculo por su nombre exacto en Google Drive
+  sheet = client.open("InventarioData").sheet1
+  return sheet
+
+
+def cargar_datos():
+  try:
+    sheet = conectar_google_sheets()
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+    if df.empty:
+      df = pd.DataFrame(
+          columns=[
+              "ID",
+              "Producto",
+              "Categoría",
+              "Cantidad",
+              "Precio Unitario ($)",
+              "Ubicación",
+          ]
+      )
+    return df
+  except Exception as e:
+    st.error(f"Error al conectar con Google Sheets: {e}")
+    return pd.DataFrame(
+        columns=[
+            "ID",
+            "Producto",
+            "Categoría",
+            "Cantidad",
+            "Precio Unitario ($)",
+            "Ubicación",
+        ]
+    )
+
+
+def guardar_datos_en_gsheets(df):
+  sheet = conectar_google_sheets()
+  sheet.clear()  # Limpia la hoja
+  sheet.update(
+      [df.columns.values.tolist()] + df.values.tolist()
+  )  # Actualiza con los nuevos datos
+
+
+# Control de sesión de usuarios local
 def verificar_credenciales(usuario, contraseña):
-  # Base de datos simulada de usuarios y roles
   usuarios_db = {
-      "admin": {"password": "12345", "rol": "Administrador", "nombre": "Alejandro Muñoz"},
+      "admin": {"password": "12345", "rol": "Administrador", "nombre": "Carlos"},
       "empleado": {
           "password": "abcde",
           "rol": "Empleado",
-          "nombre": "Vendedor",
+          "nombre": "Ana Pérez",
       },
   }
   if usuario in usuarios_db and usuarios_db[usuario]["password"] == contraseña:
@@ -37,14 +86,13 @@ def verificar_credenciales(usuario, contraseña):
   return None
 
 
-# Control de sesión en Streamlit
 if "autenticado" not in st.session_state:
   st.session_state["autenticado"] = False
   st.session_state["usuario"] = ""
   st.session_state["rol"] = ""
   st.session_state["nombre"] = ""
 
-# Pantalla de Login si no ha iniciado sesión
+# Pantalla de Login
 if not st.session_state["autenticado"]:
   st.title("🔐 Iniciar Sesión - Sistema de Inventarios")
   st.markdown(
@@ -75,39 +123,9 @@ if not st.session_state["autenticado"]:
   )
 
 else:
-  # ==========================================
-  # APLICACIÓN PRINCIPAL (Usuario Autenticado)
-  # ==========================================
-
-  EXCEL_FILE = "inventario_data.xlsx"
-
-
-  @st.cache_data
-  def cargar_datos():
-    if os.path.exists(EXCEL_FILE):
-      return pd.read_excel(EXCEL_FILE)
-    else:
-      df_default = pd.DataFrame(
-          columns=[
-              "ID",
-              "Producto",
-              "Categoría",
-              "Cantidad",
-              "Precio Unitario ($)",
-              "Ubicación",
-          ]
-      )
-      df_default.to_excel(EXCEL_FILE, index=False)
-      return df_default
-
-
-  def guardar_datos(df):
-    df.to_excel(EXCEL_FILE, index=False)
-
-
+  # APLICACIÓN PRINCIPAL
   df_inventario = cargar_datos()
 
-  # Barra lateral con información de usuario y botón de salida
   st.sidebar.write(f"👤 **Usuario:** {st.session_state['nombre']}")
   st.sidebar.write(f"🛡️ **Rol:** {st.session_state['rol']}")
 
@@ -120,7 +138,6 @@ else:
 
   st.sidebar.markdown("---")
 
-  # Opciones del menú según el rol del usuario
   if st.session_state["rol"] == "Administrador":
     opciones_menu = [
         "Ver Inventario",
@@ -129,28 +146,33 @@ else:
         "Eliminar Producto",
     ]
   else:
-    # Los empleados no pueden eliminar productos
     opciones_menu = ["Ver Inventario", "Actualizar Stock"]
 
   menu = st.sidebar.selectbox("Menú de Navegación", opciones_menu)
 
-  # Título principal
-  st.title("📦 Sistema de Gestión de Inventarios")
-  st.markdown("Administra tus productos, controla el stock y exporta tus datos.")
+  st.title("📦 Sistema de Gestión de Inventarios (Google Sheets)")
+  st.markdown(
+      "Los datos se guardan de forma permanente y en tiempo real en la nube."
+  )
 
   # 1. VER INVENTARIO
   if menu == "Ver Inventario":
     st.subheader("📋 Inventario Actual")
 
     if df_inventario.empty:
-      st.info("No hay productos registrados en el inventario.")
+      st.info(
+          "No hay productos registrados en el inventario todavía. Puedes"
+          " registrar productos desde el menú de Administrador."
+      )
     else:
       busqueda = st.text_input("🔍 Buscar producto por nombre o categoría:")
       if busqueda:
         df_filtrado = df_inventario[
             df_inventario["Producto"]
+            .astype(str)
             .str.contains(busqueda, case=False, na=False)
             | df_inventario["Categoría"]
+            .astype(str)
             .str.contains(busqueda, case=False, na=False)
         ]
       else:
@@ -158,27 +180,25 @@ else:
 
       col1, col2, col3 = st.columns(3)
       col1.metric("Total de Productos Únicos", len(df_inventario))
-      col2.metric(
-          "Unidades Totales en Stock", int(df_inventario["Cantidad"].sum())
-      )
-      valor_total = (
-          df_inventario["Cantidad"] * df_inventario["Precio Unitario ($)"]
-      ).sum()
+
+      try:
+        total_unidades = int(df_inventario["Cantidad"].sum())
+      except:
+        total_unidades = 0
+      col2.metric("Unidades Totales en Stock", total_unidades)
+
+      try:
+        valor_total = (
+            pd.to_numeric(df_inventario["Cantidad"], errors="coerce")
+            * pd.to_numeric(df_inventario["Precio Unitario ($)"], errors="coerce")
+        ).sum()
+      except:
+        valor_total = 0.0
       col3.metric("Valor Total del Inventario", f"${valor_total:,.2f}")
 
       st.dataframe(df_filtrado, use_container_width=True)
 
-      with open(EXCEL_FILE, "rb") as f:
-        st.download_button(
-            label="📥 Descargar Inventario en Excel",
-            data=f,
-            file_name="inventario.xlsx",
-            mime=(
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            ),
-        )
-
-  # 2. AGREGAR PRODUCTO (Solo Administrador)
+  # 2. AGREGAR PRODUCTO
   elif menu == "Agregar Producto":
     st.subheader("➕ Registrar Nuevo Producto")
 
@@ -202,22 +222,29 @@ else:
           st.warning(
               "Por favor, completa al menos el ID y el Nombre del producto."
           )
-        elif prod_id in df_inventario["ID"].astype(str).values:
+        elif (
+            not df_inventario.empty
+            and prod_id in df_inventario["ID"].astype(str).values
+        ):
           st.error(f"El ID '{prod_id}' ya existe en el inventario.")
         else:
           nuevo_registro = pd.DataFrame({
-              "ID": [prod_id],
-              "Producto": [nombre],
-              "Categoría": [categoria],
+              "ID": [str(prod_id)],
+              "Producto": [str(nombre)],
+              "Categoría": [str(categoria)],
               "Cantidad": [int(cantidad)],
               "Precio Unitario ($)": [float(precio)],
-              "Ubicación": [ubicacion],
+              "Ubicación": [str(ubicacion)],
           })
           df_inventario = pd.concat(
               [df_inventario, nuevo_registro], ignore_index=True
           )
-          guardar_datos(df_inventario)
-          st.success(f"¡Producto '{nombre}' agregado exitosamente!")
+          guardar_datos_en_gsheets(df_inventario)
+          st.success(
+              f"¡Producto '{nombre}' agregado y guardado en Google Sheets"
+              " exitosamente!"
+          )
+          st.rerun()
 
   # 3. ACTUALIZAR STOCK
   elif menu == "Actualizar Stock":
@@ -251,15 +278,15 @@ else:
         else:
           nuevo_stock = cantidad_cambio
 
-        df_inventario.loc[idx, "Cantidad"] = nuevo_stock
-        guardar_datos(df_inventario)
+        df_inventario.loc[idx, "Cantidad"] = int(nuevo_stock)
+        guardar_datos_en_gsheets(df_inventario)
         st.success(
-            f"¡Stock actualizado! El nuevo inventario de '{producto_seleccionado}'"
-            f" es {nuevo_stock} unidades."
+            f"¡Stock actualizado en Google Sheets! El nuevo inventario de"
+            f" '{producto_seleccionado}' es {nuevo_stock} unidades."
         )
         st.rerun()
 
-  # 4. ELIMINAR PRODUCTO (Solo Administrador)
+  # 4. ELIMINAR PRODUCTO
   elif menu == "Eliminar Producto":
     st.subheader("🗑️ Eliminar Producto del Inventario")
 
@@ -274,7 +301,12 @@ else:
         df_inventario = df_inventario[
             df_inventario["Producto"] != producto_a_eliminar
         ]
-        guardar_datos(df_inventario)
+        guardar_datos_en_gsheets(df_inventario)
+        st.success(
+            f"El producto '{producto_a_eliminar}' ha sido eliminado de Google"
+            " Sheets."
+        )
+        st.rerun()
         st.success(
             f"El producto '{producto_a_eliminar}' ha sido eliminado del"
             " inventario."
